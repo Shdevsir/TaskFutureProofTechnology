@@ -133,8 +133,11 @@ def write_new_worksheet_and_down_pdf():
         step += 1
         cnt += 1
     new_workbook.save()
-
+    limit_pdf_file = 6
     for link in data["Links"]:
+        limit_pdf_file -= 1
+        if limit_pdf_file == 0:
+            break
         browser_lib.go_to(link)
         range_time = time.time() + 12
         while True:
