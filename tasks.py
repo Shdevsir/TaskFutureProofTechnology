@@ -10,9 +10,8 @@ if not os.path.exists('output'):
 
 lib = Files()
 browser_lib = Selenium()
-path = r'/output/'
+path = f"{os.path.join(os.getcwd())}/output/"
 x_file = 'myxlsx.xlsx'
-file_with_name_of_ag = r'/home/shevsir/Projects/Study/Tasks_to_work/TaskFutureProofTechnology/file.txt'
 
 
 def open_the_website(url):
@@ -83,7 +82,6 @@ def table_with_info():
     headers = []
     for tb in tb_heads:
         headers.append(tb.text)
-    # print(headers)
 
     rows = []
     while True:
