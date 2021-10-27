@@ -11,7 +11,7 @@ if not os.path.exists('output'):
 lib = Files()
 browser_lib = Selenium()
 path = f"{os.path.join(os.getcwd())}/output/"
-browser_lib.set_download_directory(path+'pdf/')
+browser_lib.set_download_directory(path)
 x_file = 'myxlsx.xlsx'
 
 
