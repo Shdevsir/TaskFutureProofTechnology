@@ -11,6 +11,7 @@ if not os.path.exists('output'):
 lib = Files()
 browser_lib = Selenium()
 path = f"{os.path.join(os.getcwd())}/output/"
+browser_lib.set_download_directory(path+'pdf/')
 x_file = 'myxlsx.xlsx'
 
 
@@ -83,11 +84,22 @@ def table_with_info():
     for tb in tb_heads:
         headers.append(tb.text)
 
-    rows = []
+    rows, links = [], []
     while True:
         obh_to_assert = browser_lib.find_element("investments-table-object_info").text
         tb_rows = browser_lib.find_element("investments-table-object").find_element_by_tag_name(
             "tbody").find_elements_by_tag_name("tr")
+        tb_links = browser_lib.find_elements('//tr[@role="row"]')
+
+        for tb_link in tb_links[2:]:
+            try:
+                link = tb_link.find_element_by_tag_name('a').get_attribute("href")
+            except Exception as e:
+                print(e)
+                link = ""
+            if link:
+                links.append(link)
+
         for tb in tb_rows:
             for tb_find in tb.find_elements_by_tag_name("td"):
                 rows.append(tb_find.text)
@@ -100,10 +112,11 @@ def table_with_info():
                 if obh_to_assert != browser_lib.find_element("investments-table-object_info").text:
                     break
                 time.sleep(2)
-    return {'Headers': headers, 'Rows': rows}
+
+    return {'Headers': headers, 'Rows': rows, "Links": links}
 
 
-def write_new_worksheet():
+def write_new_worksheet_and_down_pdf():
     new_workbook = lib.open_workbook(path+x_file)
     new_workbook.create_worksheet('All_info')
     data = table_with_info()
@@ -121,6 +134,33 @@ def write_new_worksheet():
         cnt += 1
     new_workbook.save()
 
+    for link in data["Links"]:
+        browser_lib.go_to(link)
+        range_time = time.time() + 12
+        while True:
+            try:
+                if range_time <= time.time():
+                    break
+                pdf_link = browser_lib.find_element('//*[contains(@id,"business-case-pdf")]//a').get_attribute("href")
+                if pdf_link:
+                    browser_lib.find_element('//div[@id="business-case-pdf"]').click()
+                    while True:
+                        try:
+                            time.sleep(2)
+                            if browser_lib.find_element('//div[@id="business-case-pdf"]').find_element_by_tag_name("span"):
+                                time.sleep(1)
+                            else:
+                                break
+                        except Exception as e:
+                            print(e)
+                            if browser_lib.find_element('//*[contains(@id,"business-case-pdf")]//a[@aria-busy="false"]'):
+                                time.sleep(1)
+                                break
+                    break
+            except Exception as e:
+                print(e)
+                time.sleep(1)
+
 
 def main():
     try:
@@ -128,7 +168,7 @@ def main():
         click_dive()
         write_agen_info()
         select_agen()
-        write_new_worksheet()
+        write_new_worksheet_and_down_pdf()
     finally:
         browser_lib.close_all_browsers()
 
