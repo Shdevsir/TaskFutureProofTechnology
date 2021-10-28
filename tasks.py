@@ -1,5 +1,6 @@
 from RPA.Browser.Selenium import Selenium
 from RPA.Excel.Files import Files
+from RPA.PDF import PDF
 import time
 import os
 
@@ -8,11 +9,13 @@ if not os.path.exists('output'):
     os.mkdir('output')
 
 
+pdf = PDF()
 lib = Files()
 browser_lib = Selenium()
 path = f"{os.path.join(os.getcwd())}/output/"
 browser_lib.set_download_directory(path)
 x_file = 'myxlsx.xlsx'
+limit = 6
 
 
 def open_the_website(url):
@@ -78,7 +81,6 @@ def table_with_info():
             if tb_heads:
                 break
         except Exception as e:
-            print(e)
             time.sleep(1)
     headers = []
     for tb in tb_heads:
@@ -95,7 +97,6 @@ def table_with_info():
             try:
                 link = tb_link.find_element_by_tag_name('a').get_attribute("href")
             except Exception as e:
-                print(e)
                 link = ""
             if link:
                 links.append(link)
@@ -116,7 +117,7 @@ def table_with_info():
     return {'Headers': headers, 'Rows': rows, "Links": links}
 
 
-def write_new_worksheet_and_down_pdf():
+def write_new_worksheet_and_down_pdf(limit_pdf_file):
     new_workbook = lib.open_workbook(path+x_file)
     new_workbook.create_worksheet('All_info')
     data = table_with_info()
@@ -133,7 +134,6 @@ def write_new_worksheet_and_down_pdf():
         step += 1
         cnt += 1
     new_workbook.save()
-    limit_pdf_file = 6
     for link in data["Links"]:
         limit_pdf_file -= 1
         if limit_pdf_file == 0:
@@ -155,14 +155,52 @@ def write_new_worksheet_and_down_pdf():
                             else:
                                 break
                         except Exception as e:
-                            print(e)
                             if browser_lib.find_element('//*[contains(@id,"business-case-pdf")]//a[@aria-busy="false"]'):
                                 time.sleep(1)
                                 break
                     break
             except Exception as e:
-                print(e)
                 time.sleep(1)
+
+
+def compare_data(limit_pdf_file):
+    new_workbook = lib.open_workbook(path+x_file)
+    cnt = 2
+    while True:
+        limit_pdf_file -= 1
+        if limit_pdf_file == 0:
+            break
+        data_uii = new_workbook.get_cell_value(cnt, 1)
+        if data_uii == '':
+            break
+        data_name = new_workbook.get_cell_value(cnt, 3)
+        if data_name == '':
+            break
+        pdf_info = get_pdf_info(data_uii)
+        cnt += 1
+        if data_uii == pdf_info["UII"] and data_name == pdf_info["Name"]:
+            print('compare is True')
+
+
+def get_pdf_info(name_pdf):
+    data = pdf.get_text_from_pdf(path+name_pdf+'.pdf', 1)
+    list_of_data = data[1].split()
+    i = 0
+    index = []
+    for c in list_of_data:
+        if c == "Investment:":
+            index.append(i+1)
+        elif c == "Unique":
+            index.append(i)
+        elif c == "(UII):":
+            index.append(i+1)
+        i += 1
+
+    list_of_data[(index[1]-1)] = list_of_data[(index[1]-1)].replace("2.", "")
+    name = ' '.join(list_of_data[index[0]:index[1]])
+    list_of_data[index[2]] = list_of_data[index[2]].replace("Section", "")
+    uii = list_of_data[index[2]]
+    return {'Name': name, 'UII': uii}
 
 
 def main():
@@ -171,7 +209,8 @@ def main():
         click_dive()
         write_agen_info()
         select_agen()
-        write_new_worksheet_and_down_pdf()
+        write_new_worksheet_and_down_pdf(limit)
+        compare_data(limit)
     finally:
         browser_lib.close_all_browsers()
 
