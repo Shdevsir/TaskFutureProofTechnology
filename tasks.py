@@ -172,7 +172,7 @@ def compare_data(limit_pdf_file):
         data_name = new_workbook.get_cell_value(cnt+2, 3)
         pdf_info = get_pdf_info(data_uii)
         if data_uii == pdf_info["UII"] and data_name == pdf_info["Name"]:
-            print(f'UII or Investment Title compare, colum: {cnt+2}')
+            print(f'UII and Investment Title compare, colum: {cnt+2}')
         else:
             print(f'UII or Investment Title not compare, colum: {cnt+2}')
         cnt += 1
