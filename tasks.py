@@ -1,7 +1,7 @@
+from posixpath import expanduser
 from RPA.Browser.Selenium import Selenium
 from RPA.Excel.Files import Files
 from RPA.PDF import PDF
-import time
 import os
 
 
@@ -15,6 +15,7 @@ browser_lib = Selenium()
 path = f"{os.path.join(os.getcwd())}/output/"
 browser_lib.set_download_directory(path)
 x_file = 'myxlsx.xlsx'
+column_length = {}
 limit = 6
 
 
@@ -28,7 +29,8 @@ def click_dive():
 
 
 def get_agen_info():
-    time.sleep(3)
+    browser_lib.wait_until_element_is_enabled(
+        '//div[@id="agency-tiles-widget"]//div[@class="col-sm-4 text-center noUnderline"]')
     names_of_ag = browser_lib.find_elements(
         '//div[@id="agency-tiles-widget"]//div[@class="col-sm-4 text-center noUnderline"]')
     amount, departament = [], []
@@ -64,30 +66,27 @@ def write_agen_info():
 def select_agen():
     open_the_website("https://itdashboard.gov/")
     click_dive()
-    time.sleep(3)
     new_workbook = lib.open_workbook(path+x_file)
     val = new_workbook.get_cell_value(5, 3)
+    browser_lib.wait_until_element_is_enabled(
+        '//div[@id="agency-tiles-widget"]//div[@class="col-sm-4 text-center noUnderline"]')
     browser_lib.find_elements(
-        '//div[@id="agency-tiles-widget"]//div[@class="col-sm-4 text-center noUnderline"]//div[@class="row top-gutter-20"]//div[@class="col-sm-12"]')[val].click()
-    time.sleep(5)
+        '//div[@class="row top-gutter-20"]//div[@class="col-sm-12"]')[val].click()
 
 
 def table_with_info():
-    while True:
-        try:
-            tb_heads = browser_lib.find_element(
-                '//table[@class="datasource-table usa-table-borderless dataTable no-footer"]').find_element_by_tag_name(
-                "thead").find_elements_by_tag_name("tr")[1].find_elements_by_tag_name("th")
-            if tb_heads:
-                break
-        except Exception as e:
-            time.sleep(1)
+    browser_lib.wait_until_element_is_visible(
+        '//table[@class="datasource-table usa-table-borderless dataTable no-footer"]', timeout=20)
+    tb_heads = browser_lib.find_element(
+        '//table[@class="datasource-table usa-table-borderless dataTable no-footer"]').find_element_by_tag_name(
+        "thead").find_elements_by_tag_name("tr")[1].find_elements_by_tag_name("th")
     headers = []
     for tb in tb_heads:
         headers.append(tb.text)
 
     rows, links = [], []
     while True:
+        browser_lib.wait_until_element_is_enabled('//table[@class="datasource-table usa-table-borderless dataTable no-footer"]')
         obh_to_assert = browser_lib.find_element("investments-table-object_info").text
         tb_rows = browser_lib.find_element("investments-table-object").find_element_by_tag_name(
             "tbody").find_elements_by_tag_name("tr")
@@ -112,12 +111,16 @@ def table_with_info():
             while True:
                 if obh_to_assert != browser_lib.find_element("investments-table-object_info").text:
                     break
-                time.sleep(2)
 
     return {'Headers': headers, 'Rows': rows, "Links": links}
 
 
-def write_new_worksheet_and_down_pdf(limit_pdf_file):
+def write_new_worksheet_and_download_pdf(limit_pdf_file):
+    '''
+    The limit is related to specifics of the deployment to
+    https://cloud.robocorp.com/
+    (file upload limit 5Mb)
+    '''
     new_workbook = lib.open_workbook(path+x_file)
     new_workbook.create_worksheet('All_info')
     data = table_with_info()
@@ -133,53 +136,48 @@ def write_new_worksheet_and_down_pdf(limit_pdf_file):
         new_workbook.set_cell_value(i, cnt, row)
         step += 1
         cnt += 1
+    column_length['len'] = i - 1
     new_workbook.save()
     for link in data["Links"]:
         limit_pdf_file -= 1
-        if limit_pdf_file == 0:
-            break
         browser_lib.go_to(link)
-        range_time = time.time() + 12
-        while True:
-            try:
-                if range_time <= time.time():
-                    break
-                pdf_link = browser_lib.find_element('//*[contains(@id,"business-case-pdf")]//a').get_attribute("href")
-                if pdf_link:
-                    browser_lib.find_element('//div[@id="business-case-pdf"]').click()
-                    while True:
-                        try:
-                            time.sleep(2)
-                            if browser_lib.find_element('//div[@id="business-case-pdf"]').find_element_by_tag_name("span"):
-                                time.sleep(1)
-                            else:
-                                break
-                        except Exception as e:
-                            if browser_lib.find_element('//*[contains(@id,"business-case-pdf")]//a[@aria-busy="false"]'):
-                                time.sleep(1)
-                                break
-                    break
-            except Exception as e:
-                time.sleep(1)
+        pdf_link = browser_lib.wait_until_element_is_visible('//*[contains(@id,"business-case-pdf")]//a')
+        pdf_link = browser_lib.find_element('//*[contains(@id,"business-case-pdf")]//a').get_attribute("href")
+        if pdf_link:
+            browser_lib.find_element('//div[@id="business-case-pdf"]').click()
+            while True:
+                try:
+                    if browser_lib.find_element('//div[@id="business-case-pdf"]').find_element_by_tag_name("span"):
+                        continue
+                    else:
+                        break
+                except Exception as e:
+                    if browser_lib.find_element('//*[contains(@id,"business-case-pdf")]//a[@aria-busy="false"]'):
+                        break
+            if limit_pdf_file == 0:
+                break
 
 
 def compare_data(limit_pdf_file):
+    '''
+    The limit is related to specifics of the deployment to
+    https://cloud.robocorp.com/
+    (file upload limit 5Mb)
+    '''
     new_workbook = lib.open_workbook(path+x_file)
-    cnt = 2
-    while True:
+
+    for cnt in range(column_length['len']):
         limit_pdf_file -= 1
+        data_uii = new_workbook.get_cell_value(cnt+2, 1)
+        data_name = new_workbook.get_cell_value(cnt+2, 3)
+        pdf_info = get_pdf_info(data_uii)
+        if data_uii == pdf_info["UII"] and data_name == pdf_info["Name"]:
+            print(f'UII or Investment Title compare, colum: {cnt+2}')
+        else:
+            print(f'UII or Investment Title not compare, colum: {cnt+2}')
+        cnt += 1
         if limit_pdf_file == 0:
             break
-        data_uii = new_workbook.get_cell_value(cnt, 1)
-        if data_uii == '':
-            break
-        data_name = new_workbook.get_cell_value(cnt, 3)
-        if data_name == '':
-            break
-        pdf_info = get_pdf_info(data_uii)
-        cnt += 1
-        if data_uii == pdf_info["UII"] and data_name == pdf_info["Name"]:
-            print('compare is True')
 
 
 def get_pdf_info(name_pdf):
@@ -209,7 +207,7 @@ def main():
         click_dive()
         write_agen_info()
         select_agen()
-        write_new_worksheet_and_down_pdf(limit)
+        write_new_worksheet_and_download_pdf(limit)
         compare_data(limit)
     finally:
         browser_lib.close_all_browsers()
